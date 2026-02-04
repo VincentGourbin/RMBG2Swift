@@ -67,13 +67,24 @@ public final class RMBG2: @unchecked Sendable {
         let downloader = ModelDownloader(configuration: configuration, progress: progress)
         let modelURL = try await downloader.getCompiledModelURL()
 
-        // Load the model
+        // Load the model with fallback for ANE compatibility issues
         let config = MLModelConfiguration()
         config.computeUnits = configuration.computeUnits
 
         do {
             self.model = try await MLModel.load(contentsOf: modelURL, configuration: config)
         } catch {
+            // If ANE fails, fallback to CPU+GPU
+            if configuration.computeUnits == .all {
+                let fallbackConfig = MLModelConfiguration()
+                fallbackConfig.computeUnits = .cpuAndGPU
+                do {
+                    self.model = try await MLModel.load(contentsOf: modelURL, configuration: fallbackConfig)
+                    return
+                } catch {
+                    throw RMBG2Error.modelLoadFailed(underlying: error)
+                }
+            }
             throw RMBG2Error.modelLoadFailed(underlying: error)
         }
     }
