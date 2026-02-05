@@ -96,36 +96,13 @@ public final class RMBG2: @unchecked Sendable {
     public func removeBackground(from image: CGImage) async throws -> RMBG2Result {
         let originalSize = CGSize(width: image.width, height: image.height)
 
-        #if DEBUG
-        print("[RMBG2] Input image: \(image.width)x\(image.height), alpha: \(image.alphaInfo.rawValue), bitmapInfo: \(image.bitmapInfo.rawValue)")
-        #endif
-
         // Resize to model input size
         guard let resizedImage = ImageProcessing.resize(image) else {
             throw RMBG2Error.imageProcessingFailed(reason: "Failed to resize input image")
         }
 
-        #if DEBUG
-        print("[RMBG2] Resized image: \(resizedImage.width)x\(resizedImage.height), alpha: \(resizedImage.alphaInfo.rawValue)")
-        #endif
-
         // Create input array
         let inputArray = try ImageProcessing.createMultiArray(from: resizedImage)
-
-        #if DEBUG
-        // Log input array stats using floatValue for consistency
-        var minVal: Float = .infinity
-        var maxVal: Float = -.infinity
-        var sum: Float = 0
-        for i in 0..<min(1000, inputArray.count) {
-            let v = inputArray[i].floatValue
-            minVal = min(minVal, v)
-            maxVal = max(maxVal, v)
-            sum += v
-        }
-        print("[RMBG2] Input array shape: \(inputArray.shape), dataType: \(inputArray.dataType.rawValue)")
-        print("[RMBG2] Input array stats (first 1000 via floatValue): min=\(minVal), max=\(maxVal), mean=\(sum/1000)")
-        #endif
 
         // Run inference
         let startTime = CFAbsoluteTimeGetCurrent()
@@ -147,45 +124,6 @@ public final class RMBG2: @unchecked Sendable {
               let outputArray = outputFeature.multiArrayValue else {
             throw RMBG2Error.outputCreationFailed(reason: "Failed to get model output")
         }
-
-        #if DEBUG
-        // Log output array stats using floatValue (handles Float16 correctly)
-        var outMin: Float = .infinity
-        var outMax: Float = -.infinity
-        var outSum: Float = 0
-        for i in 0..<min(1000, outputArray.count) {
-            let v = outputArray[i].floatValue
-            outMin = min(outMin, v)
-            outMax = max(outMax, v)
-            outSum += v
-        }
-        print("[RMBG2] Output array shape: \(outputArray.shape), dataType: \(outputArray.dataType.rawValue)")
-        print("[RMBG2] Output array stats (first 1000 via floatValue): min=\(outMin), max=\(outMax), mean=\(outSum/1000)")
-
-        // Full output distribution for debugging sandbox vs standalone differences
-        var bins = [Int](repeating: 0, count: 6) // <-10, -10..-5, -5..0, 0..5, 5..10, >10
-        var fullMin: Float = .infinity
-        var fullMax: Float = -.infinity
-        var positiveCount = 0
-        var negativeCount = 0
-        for i in 0..<outputArray.count {
-            let v = outputArray[i].floatValue
-            fullMin = min(fullMin, v)
-            fullMax = max(fullMax, v)
-            if v >= 0 { positiveCount += 1 } else { negativeCount += 1 }
-            let binIdx: Int
-            if v < -10 { binIdx = 0 }
-            else if v < -5 { binIdx = 1 }
-            else if v < 0 { binIdx = 2 }
-            else if v < 5 { binIdx = 3 }
-            else if v < 10 { binIdx = 4 }
-            else { binIdx = 5 }
-            bins[binIdx] += 1
-        }
-        print("[RMBG2] FULL output stats: min=\(fullMin), max=\(fullMax), total=\(outputArray.count)")
-        print("[RMBG2] Output distribution: <-10:\(bins[0]) | -10..-5:\(bins[1]) | -5..0:\(bins[2]) | 0..5:\(bins[3]) | 5..10:\(bins[4]) | >10:\(bins[5])")
-        print("[RMBG2] Positive/Negative: \(positiveCount) positive, \(negativeCount) negative")
-        #endif
 
         // Get output size from shape
         let outputSize = outputArray.shape[2].intValue
