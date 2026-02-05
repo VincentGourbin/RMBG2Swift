@@ -62,4 +62,9 @@ public struct RMBG2Configuration: Sendable {
 
     /// Configuration using CPU only, with INT8 model
     public static let cpuOnly = RMBG2Configuration(computeUnits: .cpuOnly)
+
+    /// Recommended configuration for sandboxed macOS apps (App Store)
+    /// Uses CPU-only inference to avoid GPU execution issues in App Sandbox
+    /// Note: GPU inference may produce incorrect results in sandboxed environments
+    public static let sandboxed = RMBG2Configuration(computeUnits: .cpuOnly)
 }
