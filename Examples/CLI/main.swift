@@ -1,4 +1,5 @@
 import Foundation
+import CoreML
 import RMBG2Swift
 import UniformTypeIdentifiers
 
@@ -10,6 +11,7 @@ import AppKit
 @main
 struct RMBG2CLI {
     static var modelVariant: ModelVariant = .quantized
+    static var computeUnits: MLComputeUnits = .all
 
     static func main() async {
         print("RMBG2 - Background Removal CLI")
@@ -33,6 +35,27 @@ struct RMBG2CLI {
                 }
                 args.remove(at: modelIndex + 1)
                 args.remove(at: modelIndex)
+            }
+        }
+
+        // Parse --compute option
+        if let computeIndex = args.firstIndex(of: "--compute") {
+            if computeIndex + 1 < args.count {
+                let units = args[computeIndex + 1]
+                switch units {
+                case "all", "ane":
+                    computeUnits = .all
+                case "cpuAndGPU", "gpu":
+                    computeUnits = .cpuAndGPU
+                case "cpuOnly", "cpu":
+                    computeUnits = .cpuOnly
+                default:
+                    print("Unknown compute units: \(units)")
+                    print("Use 'all', 'cpuAndGPU', or 'cpuOnly'")
+                    exit(1)
+                }
+                args.remove(at: computeIndex + 1)
+                args.remove(at: computeIndex)
             }
         }
 
@@ -67,11 +90,19 @@ struct RMBG2CLI {
         let outputPath = args.count > 1 ? args[1] : generateOutputPath(from: inputPath)
 
         let variantName = modelVariant == .quantized ? "INT8 quantized" : "FP32 full precision"
+        let computeName: String
+        switch computeUnits {
+        case .all: computeName = "ANE (.all)"
+        case .cpuAndGPU: computeName = "CPU+GPU (.cpuAndGPU)"
+        case .cpuOnly: computeName = "CPU only (.cpuOnly)"
+        @unknown default: computeName = "unknown"
+        }
         print("Model variant: \(variantName)")
+        print("Compute units: \(computeName)")
 
         do {
             print("Loading model...")
-            let config = RMBG2Configuration(modelVariant: modelVariant)
+            let config = RMBG2Configuration(modelVariant: modelVariant, computeUnits: computeUnits)
             let rmbg = try await RMBG2(configuration: config) { progress, status in
                 print("  \(status) (\(Int(progress * 100))%)")
             }
@@ -168,12 +199,13 @@ struct RMBG2CLI {
 
     static func printUsage() {
         print("""
-        Usage: rmbg2-cli [--model <int8|full>] <input_image> [output_image]
-               rmbg2-cli [--model <int8|full>] process <input_image> [output_image]
+        Usage: rmbg2-cli [options] <input_image> [output_image]
+               rmbg2-cli [options] process <input_image> [output_image]
                rmbg2-cli cache <info|clear>
 
         Options:
-          --model <variant>  Model to use: int8 (default, 233MB) or full (461MB)
+          --model <variant>   Model to use: int8 (default, 233MB) or full (461MB)
+          --compute <units>   Compute units: all/ane (default), cpuAndGPU/gpu, cpuOnly/cpu
 
         Commands:
           process   Remove background from an image
@@ -181,11 +213,12 @@ struct RMBG2CLI {
           help      Show this help message
 
         Examples:
-          rmbg2-cli photo.jpg                       # INT8 model (default)
-          rmbg2-cli --model full photo.jpg          # FP32 full precision
-          rmbg2-cli --model int8 photo.jpg out.png  # Explicit INT8
-          rmbg2-cli cache info                      # Show cache location
-          rmbg2-cli cache clear                     # Clear cached model
+          rmbg2-cli photo.jpg                           # INT8 model, ANE (default)
+          rmbg2-cli --model full photo.jpg              # FP32 full precision
+          rmbg2-cli --compute cpuAndGPU photo.jpg       # Force GPU (for debugging)
+          rmbg2-cli --model int8 photo.jpg out.png      # Explicit INT8
+          rmbg2-cli cache info                          # Show cache location
+          rmbg2-cli cache clear                         # Clear cached model
 
         The model is automatically downloaded on first use.
         Cache location: ~/Library/Caches/models/VincentGOURBIN/RMBG-2-CoreML/
