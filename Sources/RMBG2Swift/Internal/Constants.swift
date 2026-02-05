@@ -14,11 +14,27 @@ enum Constants {
     /// Full HuggingFace model repository
     static let huggingFaceRepo = "\(huggingFaceOrg)/\(huggingFaceRepoName)"
 
-    /// Model filename
-    static let modelFilename = "RMBG-2-native.mlpackage"
+    /// Model filenames by variant
+    enum ModelFiles {
+        /// Full precision FP32 model
+        case full
+        /// INT8 quantized model
+        case quantized
 
-    /// Compiled model filename
-    static let compiledModelFilename = "RMBG-2-native.mlmodelc"
+        var packageFilename: String {
+            switch self {
+            case .full: return "RMBG-2-native.mlpackage"
+            case .quantized: return "RMBG-2-native-int8.mlpackage"
+            }
+        }
+
+        var compiledFilename: String {
+            switch self {
+            case .full: return "RMBG-2-native.mlmodelc"
+            case .quantized: return "RMBG-2-native-int8.mlmodelc"
+            }
+        }
+    }
 
     /// Base URL for model download from HuggingFace
     static let modelBaseURL = "https://huggingface.co/\(huggingFaceRepo)/resolve/main"
@@ -30,7 +46,7 @@ enum Constants {
     static let normalizationStd: [Float] = [0.229, 0.224, 0.225]
 
     /// Model version for cache invalidation
-    static let modelVersion = "1.0.0"
+    static let modelVersion = "1.1.0"
 
     /// Default cache directory path (similar to mlx-voxtral-swift)
     /// Primary: ~/Library/Caches/models/{org}/{repo}

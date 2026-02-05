@@ -24,6 +24,14 @@ public actor ModelDownloader {
         self.progressHandler = progress
     }
 
+    /// Gets the model files configuration for the current variant
+    private var modelFiles: Constants.ModelFiles {
+        switch configuration.modelVariant {
+        case .full: return .full
+        case .quantized: return .quantized
+        }
+    }
+
     /// Gets the URL to the compiled model, downloading if necessary
     /// - Returns: URL to the compiled .mlmodelc directory
     public func getCompiledModelURL() async throws -> URL {
@@ -36,7 +44,7 @@ public actor ModelDownloader {
         let cacheDir = try getCacheDirectory()
 
         // Check if compiled model exists in cache
-        let compiledModelURL = cacheDir.appendingPathComponent(Constants.compiledModelFilename)
+        let compiledModelURL = cacheDir.appendingPathComponent(modelFiles.compiledFilename)
 
         if FileManager.default.fileExists(atPath: compiledModelURL.path) {
             await reportProgress(1.0, "Using cached model")
@@ -44,7 +52,7 @@ public actor ModelDownloader {
         }
 
         // Check if mlpackage exists but not compiled
-        let packageURL = cacheDir.appendingPathComponent(Constants.modelFilename)
+        let packageURL = cacheDir.appendingPathComponent(modelFiles.packageFilename)
 
         if FileManager.default.fileExists(atPath: packageURL.path) {
             await reportProgress(0.5, "Compiling cached model...")
@@ -58,13 +66,13 @@ public actor ModelDownloader {
 
     /// Downloads the model from HuggingFace
     private func downloadModel(to cacheDir: URL) async throws -> URL {
-        let packageURL = cacheDir.appendingPathComponent(Constants.modelFilename)
+        let packageURL = cacheDir.appendingPathComponent(modelFiles.packageFilename)
 
         await reportProgress(0.0, "Downloading model...")
 
         // HuggingFace provides a way to download folders as zip
         // For mlpackage, we download as a zip file
-        guard let downloadURL = URL(string: "https://huggingface.co/\(Constants.huggingFaceRepo)/resolve/main/\(Constants.modelFilename).zip") else {
+        guard let downloadURL = URL(string: "https://huggingface.co/\(Constants.huggingFaceRepo)/resolve/main/\(modelFiles.packageFilename).zip") else {
             throw RMBG2Error.modelDownloadFailed(underlying: nil)
         }
 
@@ -88,7 +96,7 @@ public actor ModelDownloader {
         await reportProgress(0.7, "Extracting model...")
 
         // Move downloaded file to cache
-        let zipURL = cacheDir.appendingPathComponent("\(Constants.modelFilename).zip")
+        let zipURL = cacheDir.appendingPathComponent("\(modelFiles.packageFilename).zip")
         if FileManager.default.fileExists(atPath: zipURL.path) {
             try FileManager.default.removeItem(at: zipURL)
         }
@@ -109,21 +117,21 @@ public actor ModelDownloader {
     private func downloadModelFiles(to cacheDir: URL) async throws -> URL {
         await reportProgress(0.1, "Downloading model files...")
 
-        let packageURL = cacheDir.appendingPathComponent(Constants.modelFilename)
+        let packageURL = cacheDir.appendingPathComponent(modelFiles.packageFilename)
         let dataDir = packageURL.appendingPathComponent("Data").appendingPathComponent("com.apple.CoreML")
 
         // Create directory structure
         try FileManager.default.createDirectory(at: dataDir, withIntermediateDirectories: true)
 
         // Download Manifest.json
-        let manifestURL = URL(string: "\(Constants.modelBaseURL)/\(Constants.modelFilename)/Manifest.json")!
+        let manifestURL = URL(string: "\(Constants.modelBaseURL)/\(modelFiles.packageFilename)/Manifest.json")!
         let (manifestData, _) = try await URLSession.shared.data(from: manifestURL)
         try manifestData.write(to: packageURL.appendingPathComponent("Manifest.json"))
 
         await reportProgress(0.3, "Downloading model weights...")
 
         // Download model.mlmodel
-        let modelFileURL = URL(string: "\(Constants.modelBaseURL)/\(Constants.modelFilename)/Data/com.apple.CoreML/model.mlmodel")!
+        let modelFileURL = URL(string: "\(Constants.modelBaseURL)/\(modelFiles.packageFilename)/Data/com.apple.CoreML/model.mlmodel")!
         let (modelData, _) = try await URLSession.shared.data(from: modelFileURL)
         try modelData.write(to: dataDir.appendingPathComponent("model.mlmodel"))
 
@@ -134,7 +142,7 @@ public actor ModelDownloader {
         try? FileManager.default.createDirectory(at: weightsDir, withIntermediateDirectories: true)
 
         // Try to download weight.bin (common format)
-        if let weightURL = URL(string: "\(Constants.modelBaseURL)/\(Constants.modelFilename)/Data/com.apple.CoreML/weights/weight.bin") {
+        if let weightURL = URL(string: "\(Constants.modelBaseURL)/\(modelFiles.packageFilename)/Data/com.apple.CoreML/weights/weight.bin") {
             do {
                 let (weightData, _) = try await URLSession.shared.data(from: weightURL)
                 try weightData.write(to: weightsDir.appendingPathComponent("weight.bin"))
@@ -177,7 +185,7 @@ public actor ModelDownloader {
 
         // Compile to cache directory
         let cacheDir = try getCacheDirectory()
-        let compiledURL = cacheDir.appendingPathComponent(Constants.compiledModelFilename)
+        let compiledURL = cacheDir.appendingPathComponent(modelFiles.compiledFilename)
 
         // Check if already compiled
         if FileManager.default.fileExists(atPath: compiledURL.path) {
