@@ -44,15 +44,22 @@ public struct RMBG2Configuration: Sendable {
         self.cacheDirectory = cacheDirectory
     }
 
-    /// Default configuration using quantized model with ANE
+    // MARK: - Static Configurations
+
+    /// Default configuration using INT8 quantized model with ANE
     public static let `default` = RMBG2Configuration()
 
-    /// Configuration using full precision FP32 model
+    /// Configuration using INT8 quantized model (233 MB) - Recommended
+    /// Smaller download, optimized for ANE, equivalent quality
+    public static let int8 = RMBG2Configuration(modelVariant: .quantized)
+
+    /// Configuration using full precision FP32 model (461 MB)
+    /// Larger download, slightly higher precision
     public static let fullPrecision = RMBG2Configuration(modelVariant: .full)
 
-    /// Configuration using CPU and GPU only (no ANE)
+    /// Configuration using CPU and GPU only (no ANE), with INT8 model
     public static let cpuAndGPU = RMBG2Configuration(computeUnits: .cpuAndGPU)
 
-    /// Configuration using CPU only
+    /// Configuration using CPU only, with INT8 model
     public static let cpuOnly = RMBG2Configuration(computeUnits: .cpuOnly)
 }
