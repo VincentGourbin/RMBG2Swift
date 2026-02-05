@@ -113,19 +113,18 @@ public final class RMBG2: @unchecked Sendable {
         let inputArray = try ImageProcessing.createMultiArray(from: resizedImage)
 
         #if DEBUG
-        // Log input array stats
-        let ptr = inputArray.dataPointer.bindMemory(to: Float.self, capacity: inputArray.count)
+        // Log input array stats using floatValue for consistency
         var minVal: Float = .infinity
         var maxVal: Float = -.infinity
         var sum: Float = 0
         for i in 0..<min(1000, inputArray.count) {
-            let v = ptr[i]
+            let v = inputArray[i].floatValue
             minVal = min(minVal, v)
             maxVal = max(maxVal, v)
             sum += v
         }
         print("[RMBG2] Input array shape: \(inputArray.shape), dataType: \(inputArray.dataType.rawValue)")
-        print("[RMBG2] Input array stats (first 1000): min=\(minVal), max=\(maxVal), mean=\(sum/1000)")
+        print("[RMBG2] Input array stats (first 1000 via floatValue): min=\(minVal), max=\(maxVal), mean=\(sum/1000)")
         #endif
 
         // Run inference
@@ -150,19 +149,18 @@ public final class RMBG2: @unchecked Sendable {
         }
 
         #if DEBUG
-        // Log output array stats
-        let outPtr = outputArray.dataPointer.bindMemory(to: Float.self, capacity: outputArray.count)
+        // Log output array stats using floatValue (handles Float16 correctly)
         var outMin: Float = .infinity
         var outMax: Float = -.infinity
         var outSum: Float = 0
         for i in 0..<min(1000, outputArray.count) {
-            let v = outPtr[i]
+            let v = outputArray[i].floatValue
             outMin = min(outMin, v)
             outMax = max(outMax, v)
             outSum += v
         }
         print("[RMBG2] Output array shape: \(outputArray.shape), dataType: \(outputArray.dataType.rawValue)")
-        print("[RMBG2] Output array stats (first 1000): min=\(outMin), max=\(outMax), mean=\(outSum/1000)")
+        print("[RMBG2] Output array stats (first 1000 via floatValue): min=\(outMin), max=\(outMax), mean=\(outSum/1000)")
         #endif
 
         // Get output size from shape
