@@ -19,14 +19,15 @@ enum ImageProcessing {
     ///   - size: Target size (default: model input size)
     /// - Returns: Resized CGImage or nil on failure
     static func resize(_ image: CGImage, to size: Int = Constants.modelInputSize) -> CGImage? {
+        // Use noneSkipLast to preserve raw RGB values without alpha premultiplication
         let context = CGContext(
             data: nil,
             width: size,
             height: size,
             bitsPerComponent: 8,
-            bytesPerRow: 0,
+            bytesPerRow: size * 4,
             space: CGColorSpaceCreateDeviceRGB(),
-            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+            bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue
         )
         context?.interpolationQuality = .high
         context?.draw(image, in: CGRect(x: 0, y: 0, width: size, height: size))
@@ -46,7 +47,8 @@ enum ImageProcessing {
             dataType: .float32
         )
 
-        // Get pixel data
+        // Get pixel data - use noneSkipLast to avoid premultiplied alpha corruption
+        // premultipliedLast would multiply RGB by alpha, corrupting input for transparent images
         guard let context = CGContext(
             data: nil,
             width: width,
@@ -54,7 +56,7 @@ enum ImageProcessing {
             bitsPerComponent: 8,
             bytesPerRow: width * 4,
             space: CGColorSpaceCreateDeviceRGB(),
-            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+            bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue
         ) else {
             throw RMBG2Error.imageProcessingFailed(reason: "Failed to create graphics context")
         }

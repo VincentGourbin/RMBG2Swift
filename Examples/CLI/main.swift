@@ -9,53 +9,70 @@ import AppKit
 /// RMBG2 CLI - Command-line tool for background removal
 @main
 struct RMBG2CLI {
+    static var modelVariant: ModelVariant = .quantized
+
     static func main() async {
         print("RMBG2 - Background Removal CLI")
         print("==============================\n")
 
-        let args = CommandLine.arguments
+        var args = Array(CommandLine.arguments.dropFirst())
 
-        guard args.count >= 2 else {
+        // Parse --model option
+        if let modelIndex = args.firstIndex(of: "--model") {
+            if modelIndex + 1 < args.count {
+                let variant = args[modelIndex + 1]
+                switch variant {
+                case "int8", "quantized":
+                    modelVariant = .quantized
+                case "full", "fp32":
+                    modelVariant = .full
+                default:
+                    print("Unknown model variant: \(variant)")
+                    print("Use 'int8' or 'full'")
+                    exit(1)
+                }
+                args.remove(at: modelIndex + 1)
+                args.remove(at: modelIndex)
+            }
+        }
+
+        guard args.count >= 1 else {
             printUsage()
             exit(1)
         }
 
-        let command = args[1]
+        let command = args[0]
 
         switch command {
         case "process", "-p":
-            await processImage()
+            await processImage(args: Array(args.dropFirst()))
         case "cache":
-            await handleCache()
+            await handleCache(args: Array(args.dropFirst()))
         case "help", "-h", "--help":
             printUsage()
         default:
             // Treat as image path for convenience
-            await processImage(imagePath: command)
+            await processImage(args: args)
         }
     }
 
-    static func processImage(imagePath: String? = nil) async {
-        let args = CommandLine.arguments
-        let inputPath: String
-        let outputPath: String
-
-        if let path = imagePath {
-            inputPath = path
-            outputPath = args.count > 2 ? args[2] : generateOutputPath(from: path)
-        } else {
-            guard args.count >= 3 else {
-                print("Error: Missing input image path")
-                printUsage()
-                exit(1)
-            }
-            inputPath = args[2]
-            outputPath = args.count > 3 ? args[3] : generateOutputPath(from: inputPath)
+    static func processImage(args: [String]) async {
+        guard args.count >= 1 else {
+            print("Error: Missing input image path")
+            printUsage()
+            exit(1)
         }
+
+        let inputPath = args[0]
+        let outputPath = args.count > 1 ? args[1] : generateOutputPath(from: inputPath)
+
+        let variantName = modelVariant == .quantized ? "INT8 quantized" : "FP32 full precision"
+        print("Model variant: \(variantName)")
 
         do {
             print("Loading model...")
-            let rmbg = try await RMBG2 { progress, status in
+            let config = RMBG2Configuration(modelVariant: modelVariant)
+            let rmbg = try await RMBG2(configuration: config) { progress, status in
                 print("  \(status) (\(Int(progress * 100))%)")
             }
 
@@ -100,17 +117,15 @@ struct RMBG2CLI {
         }
     }
 
-    static func handleCache() async {
-        let args = CommandLine.arguments
-
-        guard args.count >= 3 else {
+    static func handleCache(args: [String]) async {
+        guard args.count >= 1 else {
             print("Cache commands:")
             print("  cache info   - Show cache location and status")
             print("  cache clear  - Clear cached model files")
             exit(0)
         }
 
-        let subcommand = args[2]
+        let subcommand = args[0]
 
         switch subcommand {
         case "info":
@@ -153,9 +168,12 @@ struct RMBG2CLI {
 
     static func printUsage() {
         print("""
-        Usage: rmbg2-cli <input_image> [output_image]
-               rmbg2-cli process <input_image> [output_image]
+        Usage: rmbg2-cli [--model <int8|full>] <input_image> [output_image]
+               rmbg2-cli [--model <int8|full>] process <input_image> [output_image]
                rmbg2-cli cache <info|clear>
+
+        Options:
+          --model <variant>  Model to use: int8 (default, 233MB) or full (461MB)
 
         Commands:
           process   Remove background from an image
@@ -163,13 +181,14 @@ struct RMBG2CLI {
           help      Show this help message
 
         Examples:
-          rmbg2-cli photo.jpg                    # Output: photo_nobg.png
-          rmbg2-cli photo.jpg result.png         # Custom output path
-          rmbg2-cli cache info                   # Show cache location
-          rmbg2-cli cache clear                  # Clear cached model
+          rmbg2-cli photo.jpg                       # INT8 model (default)
+          rmbg2-cli --model full photo.jpg          # FP32 full precision
+          rmbg2-cli --model int8 photo.jpg out.png  # Explicit INT8
+          rmbg2-cli cache info                      # Show cache location
+          rmbg2-cli cache clear                     # Clear cached model
 
         The model is automatically downloaded on first use.
-        Cache location: ~/Library/Caches/models/VincentGourbin/RMBG-2-CoreML/
+        Cache location: ~/Library/Caches/models/VincentGOURBIN/RMBG-2-CoreML/
 
         License: This tool uses RMBG-2.0 by BRIA AI (CC BY-NC 4.0)
         Commercial use requires a license from BRIA AI: https://bria.ai
