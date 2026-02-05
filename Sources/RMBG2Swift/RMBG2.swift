@@ -96,13 +96,37 @@ public final class RMBG2: @unchecked Sendable {
     public func removeBackground(from image: CGImage) async throws -> RMBG2Result {
         let originalSize = CGSize(width: image.width, height: image.height)
 
+        #if DEBUG
+        print("[RMBG2] Input image: \(image.width)x\(image.height), alpha: \(image.alphaInfo.rawValue), bitmapInfo: \(image.bitmapInfo.rawValue)")
+        #endif
+
         // Resize to model input size
         guard let resizedImage = ImageProcessing.resize(image) else {
             throw RMBG2Error.imageProcessingFailed(reason: "Failed to resize input image")
         }
 
+        #if DEBUG
+        print("[RMBG2] Resized image: \(resizedImage.width)x\(resizedImage.height), alpha: \(resizedImage.alphaInfo.rawValue)")
+        #endif
+
         // Create input array
         let inputArray = try ImageProcessing.createMultiArray(from: resizedImage)
+
+        #if DEBUG
+        // Log input array stats
+        let ptr = inputArray.dataPointer.bindMemory(to: Float.self, capacity: inputArray.count)
+        var minVal: Float = .infinity
+        var maxVal: Float = -.infinity
+        var sum: Float = 0
+        for i in 0..<min(1000, inputArray.count) {
+            let v = ptr[i]
+            minVal = min(minVal, v)
+            maxVal = max(maxVal, v)
+            sum += v
+        }
+        print("[RMBG2] Input array shape: \(inputArray.shape), dataType: \(inputArray.dataType.rawValue)")
+        print("[RMBG2] Input array stats (first 1000): min=\(minVal), max=\(maxVal), mean=\(sum/1000)")
+        #endif
 
         // Run inference
         let startTime = CFAbsoluteTimeGetCurrent()
@@ -124,6 +148,22 @@ public final class RMBG2: @unchecked Sendable {
               let outputArray = outputFeature.multiArrayValue else {
             throw RMBG2Error.outputCreationFailed(reason: "Failed to get model output")
         }
+
+        #if DEBUG
+        // Log output array stats
+        let outPtr = outputArray.dataPointer.bindMemory(to: Float.self, capacity: outputArray.count)
+        var outMin: Float = .infinity
+        var outMax: Float = -.infinity
+        var outSum: Float = 0
+        for i in 0..<min(1000, outputArray.count) {
+            let v = outPtr[i]
+            outMin = min(outMin, v)
+            outMax = max(outMax, v)
+            outSum += v
+        }
+        print("[RMBG2] Output array shape: \(outputArray.shape), dataType: \(outputArray.dataType.rawValue)")
+        print("[RMBG2] Output array stats (first 1000): min=\(outMin), max=\(outMax), mean=\(outSum/1000)")
+        #endif
 
         // Get output size from shape
         let outputSize = outputArray.shape[2].intValue
