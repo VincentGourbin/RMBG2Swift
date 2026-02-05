@@ -161,6 +161,30 @@ public final class RMBG2: @unchecked Sendable {
         }
         print("[RMBG2] Output array shape: \(outputArray.shape), dataType: \(outputArray.dataType.rawValue)")
         print("[RMBG2] Output array stats (first 1000 via floatValue): min=\(outMin), max=\(outMax), mean=\(outSum/1000)")
+
+        // Full output distribution for debugging sandbox vs standalone differences
+        var bins = [Int](repeating: 0, count: 6) // <-10, -10..-5, -5..0, 0..5, 5..10, >10
+        var fullMin: Float = .infinity
+        var fullMax: Float = -.infinity
+        var positiveCount = 0
+        var negativeCount = 0
+        for i in 0..<outputArray.count {
+            let v = outputArray[i].floatValue
+            fullMin = min(fullMin, v)
+            fullMax = max(fullMax, v)
+            if v >= 0 { positiveCount += 1 } else { negativeCount += 1 }
+            let binIdx: Int
+            if v < -10 { binIdx = 0 }
+            else if v < -5 { binIdx = 1 }
+            else if v < 0 { binIdx = 2 }
+            else if v < 5 { binIdx = 3 }
+            else if v < 10 { binIdx = 4 }
+            else { binIdx = 5 }
+            bins[binIdx] += 1
+        }
+        print("[RMBG2] FULL output stats: min=\(fullMin), max=\(fullMax), total=\(outputArray.count)")
+        print("[RMBG2] Output distribution: <-10:\(bins[0]) | -10..-5:\(bins[1]) | -5..0:\(bins[2]) | 0..5:\(bins[3]) | 5..10:\(bins[4]) | >10:\(bins[5])")
+        print("[RMBG2] Positive/Negative: \(positiveCount) positive, \(negativeCount) negative")
         #endif
 
         // Get output size from shape
