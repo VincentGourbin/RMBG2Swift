@@ -9,7 +9,8 @@ Swift Package for high-quality background removal using BRIA AI's RMBG-2.0 model
 
 - Simple, high-level API for background removal
 - Automatic model download from HuggingFace
-- Optimized for Apple Neural Engine (ANE)
+- **Two model variants**: INT8 quantized (233 MB) or FP32 full precision (461 MB)
+- Optimized for Apple Neural Engine (ANE) with automatic fallback to GPU
 - Support for macOS 13+ and iOS 16+
 - Progress tracking during model download
 - Batch processing support
@@ -59,13 +60,44 @@ let rmbg = try await RMBG2 { progress, status in
 
 ## Advanced Usage
 
-### Configuration Options
+### Model Variants
+
+Two model variants are available:
+
+| Variant | Size | Description |
+|---------|------|-------------|
+| `.quantized` (default) | 233 MB | INT8 quantized, ANE optimized, recommended |
+| `.full` | 461 MB | FP32 full precision |
+
+```swift
+// INT8 quantized model (default, recommended)
+let rmbg = try await RMBG2(configuration: .int8)
+
+// Full precision FP32 model
+let rmbg = try await RMBG2(configuration: .fullPrecision)
+```
+
+### Static Configurations
+
+```swift
+// Model variants
+RMBG2Configuration.default       // INT8 + ANE (recommended)
+RMBG2Configuration.int8          // INT8 + ANE (explicit)
+RMBG2Configuration.fullPrecision // FP32 + ANE
+
+// Compute unit variants
+RMBG2Configuration.cpuAndGPU     // INT8 + CPU/GPU (no ANE)
+RMBG2Configuration.cpuOnly       // INT8 + CPU only
+```
+
+### Custom Configuration
 
 ```swift
 import RMBG2Swift
 
-// Custom configuration
+// Full control
 let config = RMBG2Configuration(
+    modelVariant: .quantized,     // .quantized (INT8) or .full (FP32)
     computeUnits: .all,           // .cpuOnly, .cpuAndGPU, .all (ANE)
     modelURL: customModelURL,     // Optional: use local model
     cacheDirectory: customDir     // Optional: custom cache location
@@ -73,6 +105,8 @@ let config = RMBG2Configuration(
 
 let rmbg = try await RMBG2(configuration: config)
 ```
+
+> **Note**: If ANE loading fails, the library automatically falls back to CPU+GPU.
 
 ### Generate Mask Only
 
@@ -128,12 +162,21 @@ swift build -c release
 | Compute Units | CPU, GPU, ANE |
 | Minimum OS | macOS 13+ / iOS 16+ |
 
+### Model Variants
+
+| Variant | File | Size | Quantization |
+|---------|------|------|--------------|
+| INT8 (default) | `RMBG-2-native-int8.mlpackage` | 233 MB | INT8 symmetric |
+| Full Precision | `RMBG-2-native.mlpackage` | 461 MB | FP32 |
+
 ### Performance
 
-| Device | Inference Time |
-|--------|---------------|
-| M1 Pro (ANE) | ~3s |
-| M1 Pro (GPU) | ~5s |
+| Device | Compute Units | Inference Time |
+|--------|--------------|---------------|
+| M1 Pro | .all (ANE) | ~5s |
+| M1 Pro | .cpuAndGPU | ~3s |
+
+> **Note**: Performance varies by device and model variant.
 
 ## Cache Location
 
@@ -168,13 +211,30 @@ struct RMBG2Result {
 }
 ```
 
+### ModelVariant
+
+```swift
+enum ModelVariant {
+    case quantized  // INT8, 233 MB (default, recommended)
+    case full       // FP32, 461 MB
+}
+```
+
 ### RMBG2Configuration
 
 ```swift
 struct RMBG2Configuration {
-    let computeUnits: MLComputeUnits  // .all, .cpuAndGPU, .cpuOnly
+    let modelVariant: ModelVariant     // .quantized or .full
+    let computeUnits: MLComputeUnits   // .all, .cpuAndGPU, .cpuOnly
     let modelURL: URL?                 // Custom model path
     let cacheDirectory: URL?           // Custom cache directory
+
+    // Static configurations
+    static let `default`: RMBG2Configuration      // INT8 + ANE
+    static let int8: RMBG2Configuration           // INT8 + ANE
+    static let fullPrecision: RMBG2Configuration  // FP32 + ANE
+    static let cpuAndGPU: RMBG2Configuration      // INT8 + CPU/GPU
+    static let cpuOnly: RMBG2Configuration        // INT8 + CPU
 }
 ```
 
